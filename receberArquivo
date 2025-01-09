@@ -1,0 +1,94 @@
+.data
+filepath: .space 50
+output_filepath: .space 55
+asm_content: .space 1024
+
+
+.text
+.globl main
+
+
+main:
+    la $a0, asm_content  # ponteiro para o buffer que irá armazenar o conteudo do arq de entrada
+    jal get_input_file
+
+        
+## Entrada: $a0: ponteiro para buffer que irá armazenar conteúdo do arquivo
+## Saida: nada, pois o próprio buffer irá armazenar o conteúdo do arquivo
+get_input_file:
+    # prepara a pilha
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)  # guarda o ra
+    # guarda a entrada em s0
+    move $s0, $a0
+    # imprime mensagem para obter caminho do arquivo
+    li $v0, 4
+    la $a0, prompt_input_filepath
+    syscall
+    # pega a entrada do usuário
+    li $v0, 8
+    la $a0, filepath
+    la $a1, 50
+    syscall
+    # remove o '\n' no final da entrada do usuário
+    la $a0, filepath
+    jal remove_newline
+    # abre arquivo a partir do caminho passado pelo usuario
+    li $v0, 13
+    la $a0, filepath
+    li $a1, 0
+    li $a2, 0
+    syscall
+    # verifica se abriu corretamente
+    slt $t1, $v0, $zero
+    bne $t1, $zero, error_open_file
+    # guardando descritor do arquivo
+    move $t0, $v0
+    # lendo arquivo e guardando conteudo
+    li $v0, 14
+    move $a0, $t0
+    move $a1, $s0  # s0 aramzena endereço do buffer de entrada
+    li $a2, 1024
+    syscall
+    # fechando arquivo
+    li $v0, 16
+    move $a0, $t0
+    syscall
+    # libera a pilha e recupera ra (não precisa recuperar a0)
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    # retorno
+    jr $ra
+
+
+    ## Entrada: $a0: ponteiro para a string com newline
+    ## Saida: nada, pq a manipulacao já é na string com newline
+    remove_newline:
+        move $t0, $a0
+        loop_remove_newline:
+            lb $t1, 0($t0)
+            addi $t0, $t0, 1
+            bne $t1, '\n', loop_remove_newline
+            sb $zero, -1($t0)
+            jr $ra
+
+
+## Entrada: nada
+## Saida: nada
+error_open_file:
+    # imprime a mensagem
+	li $v0, 4
+    la $a0, error_open_file_msg
+	syscall
+	j end
+	
+## Entrada: nada
+## Saida: nada
+end:
+    li $v0, 10
+    syscall
+    
+    	                                                                                            	                                                                                            
+.data
+prompt_input_filepath: .asciiz "Digite o caminho do arquivo .asm (completo): "
+error_open_file_msg: .asciiz "Error: nao foi possivel ler o arquivo"
