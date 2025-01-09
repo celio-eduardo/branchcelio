@@ -1,0 +1,141 @@
+.data
+    line:       .asciiz "valor1: .word 154878"  # Linha de exemplo (pode ser modificada)
+    label:      .space 50                       # Buffer para armazenar a label
+    value_str:  .space 50                       # Buffer para armazenar o valor (como string)
+    value_int:  .word 0                         # Valor inteiro convertido
+    hex_prefix: .asciiz "0x"                    # Prefixo hexadecimal
+    newline:    .asciiz "\n"                    # Nova linha para formatação
+
+.text
+    .globl main
+
+main:
+    # Simulação de leitura de uma linha de texto
+    la $a0, line                # Carrega o endereço da linha de texto
+    jal process_line            # Chama a função para processar a linha
+    j end_program               # Finaliza o programa
+
+process_line:
+    # Extrai a label e o valor da linha
+    move $t0, $a0               # Copia o endereço da linha para $t0
+    li $t1, 0                   # Índice para o buffer da label
+    li $t2, 0                   # Índice para o buffer do valor
+
+extract_label:
+    lb $t3, 0($t0)              # Carrega o próximo caractere da linha
+    beq $t3, ':', extract_value # Se for ':', começa a extrair o valor
+    sb $t3, label($t1)          # Armazena o caractere no buffer da label
+    addi $t1, $t1, 1            # Incrementa o índice da label
+    addi $t0, $t0, 1            # Avança para o próximo caractere da linha
+    j extract_label             # Repete o loop
+
+extract_value:
+    addi $t0, $t0, 2            # Pula o ': ' e avança para o valor
+extract_value_loop:
+    lb $t3, 0($t0)              # Carrega o próximo caractere da linha
+    beqz $t3, convert_value     # Se for o fim da linha, converte o valor
+    sb $t3, value_str($t2)      # Armazena o caractere no buffer do valor
+    addi $t2, $t2, 1            # Incrementa o índice do valor
+    addi $t0, $t0, 1            # Avança para o próximo caractere da linha
+    j extract_value_loop        # Repete o loop
+
+convert_value:
+    # Verifica se o valor é hexadecimal (começa com "0x")
+    la $t0, value_str           # Carrega o endereço do valor (string)
+    lb $t1, 0($t0)              # Carrega o primeiro caractere
+    lb $t2, 1($t0)              # Carrega o segundo caractere
+    li $t3, '0'                 # Caractere '0'
+    li $t4, 'x'                 # Caractere 'x'
+    bne $t1, $t3, decimal       # Se não começar com '0', é decimal
+    bne $t2, $t4, decimal       # Se não for seguido de 'x', é decimal
+    j hexadecimal               # Caso contrário, é hexadecimal
+
+decimal:
+    # Converte o valor decimal para inteiro
+    la $a0, value_str           # Carrega o endereço do valor (string)
+    jal atoi                    # Chama a função para converter string para inteiro
+    sw $v0, value_int           # Armazena o valor inteiro
+    j print_result              # Exibe o resultado
+
+hexadecimal:
+    # Converte o valor hexadecimal para inteiro
+    la $a0, value_str           # Carrega o endereço do valor (string)
+    jal htoi                    # Chama a função para converter hexadecimal para inteiro
+    sw $v0, value_int           # Armazena o valor inteiro
+    j print_result              # Exibe o resultado
+
+print_result:
+    # Exibe a label e o valor em hexadecimal
+    la $a0, label               # Carrega o endereço da label
+    li $v0, 4                   # Código do syscall para imprimir string
+    syscall                     # Exibe a label
+    la $a0, hex_prefix          # Carrega o prefixo "0x"
+    syscall                     # Exibe "0x"
+    lw $a0, value_int           # Carrega o valor inteiro
+    li $v0, 34                  # Código do syscall para imprimir inteiro em hexadecimal
+    syscall                     # Exibe o valor em hexadecimal
+    la $a0, newline             # Carrega o caractere de nova linha
+    li $v0, 4                   # Código do syscall para imprimir string
+    syscall                     # Exibe uma nova linha
+    jr $ra                      # Retorna para o chamador
+
+atoi:
+    # Converte uma string (decimal) para inteiro
+    li $v0, 0                   # Inicializa o resultado como 0
+    move $t0, $a0               # Copia o endereço da string para $t0
+atoi_loop:
+    lb $t1, 0($t0)              # Carrega o próximo caractere da string
+    beqz $t1, atoi_done         # Se for o fim da string, termina
+    sub $t1, $t1, '0'           # Converte o caractere para valor numérico
+    mul $v0, $v0, 10            # Multiplica o resultado por 10
+    add $v0, $v0, $t1           # Adiciona o valor numérico ao resultado
+    addi $t0, $t0, 1            # Avança para o próximo caractere
+    j atoi_loop                 # Repete o loop
+atoi_done:
+    jr $ra                      # Retorna para o chamador
+
+htoi:
+    # Converte uma string (hexadecimal) para inteiro
+    li $v0, 0                   # Inicializa o resultado como 0
+    move $t0, $a0               # Copia o endereço da string para $t0
+    addi $t0, $t0, 2            # Pula o "0x" no início
+htoi_loop:
+    lb $t1, 0($t0)              # Carrega o próximo caractere da string
+    beqz $t1, htoi_done         # Se for o fim da string, termina
+    li $t2, 'A'                 # Caractere 'A'
+    li $t3, 'F'                 # Caractere 'F'
+    li $t4, 'a'                 # Caractere 'a'
+    li $t5, 'f'                 # Caractere 'f'
+    li $t6, '0'                 # Caractere '0'
+    li $t7, '9'                 # Caractere '9'
+    bge $t1, $t2, hex_upper     # Se for maior ou igual a 'A', verifica se é hexadecimal
+    bge $t1, $t6, hex_digit     # Se for maior ou igual a '0', verifica se é dígito
+    j htoi_done                 # Caso contrário, termina
+hex_upper:
+    ble $t1, $t3, hex_upper_val # Se for menor ou igual a 'F', é hexadecimal
+    bge $t1, $t4, hex_lower     # Se for maior ou igual a 'a', verifica se é hexadecimal
+    j htoi_done                 # Caso contrário, termina
+hex_lower:
+    ble $t1, $t5, hex_lower_val # Se for menor ou igual a 'f', é hexadecimal
+    j htoi_done                 # Caso contrário, termina
+hex_upper_val:
+    sub $t1, $t1, 'A'           # Converte 'A'-'F' para 10-15
+    addi $t1, $t1, 10           # Adiciona 10
+    j hex_shift                 # Desloca e adiciona ao resultado
+hex_lower_val:
+    sub $t1, $t1, 'a'           # Converte 'a'-'f' para 10-15
+    addi $t1, $t1, 10           # Adiciona 10
+    j hex_shift                 # Desloca e adiciona ao resultado
+hex_digit:
+    sub $t1, $t1, '0'           # Converte '0'-'9' para 0-9
+hex_shift:
+    sll $v0, $v0, 4             # Desloca o resultado 4 bits para a esquerda
+    add $v0, $v0, $t1           # Adiciona o valor numérico ao resultado
+    addi $t0, $t0, 1            # Avança para o próximo caractere
+    j htoi_loop                 # Repete o loop
+htoi_done:
+    jr $ra                      # Retorna para o chamador
+
+end_program:
+    li $v0, 10                  # Código do syscall para sair do programa
+    syscall                     # Finaliza o programa
