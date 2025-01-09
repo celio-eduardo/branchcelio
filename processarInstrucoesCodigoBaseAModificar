@@ -1,0 +1,94 @@
+.data
+newline: .asciiz "\n"
+instruction_buffer: .space 32  # Buffer para armazenar a instrução
+arg1_buffer: .space 32         # Buffer para armazenar o primeiro argumento
+arg2_buffer: .space 32         # Buffer para armazenar o segundo argumento
+arg3_buffer: .space 32         # Buffer para armazenar o terceiro argumento
+
+.text
+.globl main
+
+main:
+    la $t0, buffer         # Endereço do buffer para ler a linha
+    la $t1, instruction_buffer  # Endereço para copiar a instrução
+    la $t2, arg1_buffer         # Endereço para copiar o primeiro argumento
+    la $t3, arg2_buffer         # Endereço para copiar o segundo argumento
+    la $t4, arg3_buffer         # Endereço para copiar o terceiro argumento
+
+    # Exemplo de leitura de linha (isso seria substituído pelo seu código de leitura)
+    # Aqui apenas para demonstrar, usando string de exemplo
+    la $a0, example_line
+    li $v0, 4           # syscall: print_string
+    syscall
+
+    # Processar a linha para extrair instrução e argumentos
+    la $t5, example_line   # Endereço da linha de exemplo
+    jal process_instruction
+
+    # Aqui você chamaria sua função de processamento de instrução
+    # Exemplo de chamada
+    jal process_instruction
+
+    # Finaliza o programa
+    li $v0, 10           # syscall: exit
+    syscall
+
+process_instruction:
+    # Processa a linha para extrair instrução e argumentos
+    # Supondo que a linha está em $t5
+    move $t6, $t1         # Ponteiro para copiar a instrução
+    move $t7, $t2         # Ponteiro para copiar o primeiro argumento
+    move $t8, $t3         # Ponteiro para copiar o segundo argumento
+    move $t9, $t4         # Ponteiro para copiar o terceiro argumento
+
+    li $t4, 0             # Contador de argumentos
+
+process_loop:
+    lb $t0, 0($t5)        # Carrega o byte atual
+    beq $t0, 0, end_process  # Fim da linha
+    beq $t0, 0x20, next_char  # Se espaço, próximo caractere
+    beq $t0, 0x2C, next_char  # Vírgula
+    beq $t0, 0x3A, next_char  # Dois pontos
+    beq $t0, 0x09, next_char  # Tabulação
+
+    # Copia o caractere atual para o buffer correto
+    bge $t4, 4, next_char
+
+    beq $t4, 0, copy_instr
+    beq $t4, 1, copy_arg1
+    beq $t4, 2, copy_arg2
+    beq $t4, 3, copy_arg3
+
+copy_instr:
+    sb $t0, 0($t6)        # Copia para instruction_buffer
+    addi $t6, $t6, 1
+    j next_char
+
+copy_arg1:
+    sb $t0, 0($t7)        # Copia para arg1_buffer
+    addi $t7, $t7, 1
+    j next_char
+
+copy_arg2:
+    sb $t0, 0($t8)        # Copia para arg2_buffer
+    addi $t8, $t8, 1
+    j next_char
+
+copy_arg3:
+    sb $t0, 0($t9)        # Copia para arg3_buffer
+    addi $t9, $t9, 1
+
+next_char:
+    lb $t0, 0($t5)        # Carrega o próximo byte
+    addi $t5, $t5, 1      # Avança para o próximo caractere
+    j process_loop
+
+end_process:
+    sb $zero, 0($t6)      # Null terminator para a instrução
+    sb $zero, 0($t7)      # Null terminator para o primeiro argumento
+    sb $zero, 0($t8)      # Null terminator para o segundo argumento
+    sb $zero, 0($t9)      # Null terminator para o terceiro argumento
+    jr $ra                # Retorna da função
+
+# Linha de exemplo (remova ou modifique conforme necessário)
+example_line: .asciiz "add $t1 $t3 $t4"
