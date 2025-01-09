@@ -1,0 +1,141 @@
+.data
+filepath: .space 100         # aumenta o espaço reservado para 1024 caracteres
+output_filepath: .space 100  # aumenta o espaço reservado para 1024 caracteres
+asm_content: .space 4096      # aumenta o espaço reservado para 4096 caracteres
+
+.text
+.globl main
+
+main:
+    la $a0, asm_content  # ponteiro para o buffer que irá armazenar o conteudo do arq de entrada
+    jal get_input_file
+
+## Entrada: $a0: ponteiro para buffer que irá armazenar conteúdo do arquivo
+## Saida: nada, pois o próprio buffer irá armazenar o conteúdo do arquivo
+get_input_file:
+    # prepara a pilha
+    addi $sp, $sp, -4
+    sw $ra, 0($sp)  # guarda o ra
+    # guarda a entrada em s0
+    move $s0, $a0
+    # imprime mensagem para obter caminho do arquivo
+    li $v0, 4
+    la $a0, prompt_input_filepath
+    syscall
+    # pega a entrada do usuário
+    li $v0, 8
+    la $a0, filepath
+    li $a1, 100  # aumenta o tamanho do buffer para 1024 caracteres
+    syscall
+    # remove o '\n' no final da entrada do usuário
+    la $a0, filepath
+    jal remove_newline
+    # abre arquivo a partir do caminho passado pelo usuario
+    li $v0, 13
+    la $a0, filepath
+    li $a1, 0
+    li $a2, 0
+    syscall
+    # verifica se abriu corretamente
+    slt $t1, $v0, $zero
+    bne $t1, $zero, error_open_file
+    # guardando descritor do arquivo
+    move $t0, $v0
+    # lendo arquivo e guardando conteudo
+    li $v0, 14
+    move $a0, $t0
+    move $a1, $s0  # s0 armazena endereço do buffer de entrada
+    li $a2, 4096   # aumenta o tamanho do buffer para 4096 caracteres
+    syscall
+    # fechando arquivo
+    li $v0, 16
+    move $a0, $t0
+    syscall
+    # libera a pilha e recupera ra (não precisa recuperar a0)
+    lw $ra, 0($sp)
+    addi $sp, $sp, 4
+    # retorno
+    jr $ra
+
+## Entrada: $a0: ponteiro para a string com newline
+## Saida: nada, pq a manipulação já é na string com newline
+remove_newline:
+    move $t0, $a0
+    loop_remove_newline:
+        lb $t1, 0($t0)
+        addi $t0, $t0, 1
+        bne $t1, '\n', loop_remove_newline
+        sb $zero, -1($t0)
+        jr $ra
+
+
+## Entrada: $a0: ponteiro para o conteudo asciiz a ser normalizado
+## Saida: nada, o próprio conteudo é diretamente normalizado
+format_content:
+    move $t0, $a0  # guarda ponteiro para iterar em todos os chars do conteudo
+    move $t3, $a0  # guarda ponteiro para sobrescrever conteudo com chars adequados
+    # procurando pelo começo da linha
+    search_for_start_line:
+        lb $t1, 0($t0)
+        addi $t0, $t0, 1
+        beq $t1, '\n', search_for_start_line
+        beq $t1, ' ', search_for_start_line
+        beq $t1, ',', search_for_start_line
+        beq $t1, $zero, end_format_content
+        addi $t0, $t0, -1
+        j loop_format_line
+    # após encontrar começo da linha, normalizando ela
+    loop_format_line:
+        lb $t1, 0($t0)  # char atual
+        addi $t0, $t0, 1
+        # ignora virgulas
+        beq $t1, ',', loop_format_line
+        # checa se é um espaço repetido e, se sim, o ignora
+        bne $t1, ' ', skip_check_space
+        lb $t2, 0($t0)  # guarda prox char (char atual + 1) em t2
+        beq $t2, ' ', loop_format_line  # se proximo char é um desses char's, ignora char atual
+        beq $t2, '\n', loop_format_line
+        beq $t2, ',', loop_format_line
+        beq $t2, ':', loop_format_line
+        beq $t2, ')', loop_format_line
+        beq $t2, '.', loop_format_line
+        beq $t2, '$', loop_format_line
+        lb $t2, -2($t0)  # guarda char anterior (char atual - 1) em t2
+        beq $t2, ':', loop_format_line  # se o char anterior é um desses char's, ignora char atual
+        beq $t2, '(', loop_format_line
+        skip_check_space:
+        beq $t1, $zero, end_format_content  # fim do conteudo original
+        sb $t1, 0($t3)  # guarda char "que pode ser guardado" no conteudo
+        addi $t3, $t3, 1
+        beq $t1, '\n', search_for_start_line  # checa se é o fim da linha que está sendo normalizada
+        j loop_format_line  # continua normalizando
+    end_format_content:  # fim do conteudo
+        sb $zero, 0($t3)
+
+        # Início do código de impressão
+        move $a0, $a0  # ponteiro para o conteúdo normalizado
+        li $v0, 4     # chamada de sistema para imprimir string
+        syscall       # faz a chamada de sistema
+
+        jr $ra        # retorna ao chamador
+
+
+## Entrada: nada
+## Saida: nada
+error_open_file:
+    # imprime a mensagem
+	li $v0, 4
+    la $a0, error_open_file_msg
+	syscall
+	j end
+	
+## Entrada: nada
+## Saida: nada
+end:
+    li $v0, 10
+    syscall
+    
+    
+.data
+prompt_input_filepath: .asciiz "Digite o caminho do arquivo .asm (completo): "
+error_open_file_msg: .asciiz "Error: nao foi possivel ler o arquivo"
