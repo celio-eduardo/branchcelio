@@ -1,0 +1,124 @@
+    # Extrair registradores e valores imediatos com base no tipo de instrução
+    move $t3, $s0                    # $t3 = ponteiro para a instrução (após o mnemônico)
+skip_spaces:
+    lb $t0, 0($t3)                   # Carregar caractere atual
+    beqz $t0, end_extract_fields     # Se for null, terminar
+    li $t1, ' '                      # Verificar se é espaço
+    beq $t0, $t1, skip_spaces_next
+    li $t1, '\t'                     # Verificar se é tab
+    beq $t0, $t1, skip_spaces_next
+    j extract_fields                 # Começar a extração de campos
+skip_spaces_next:
+    addiu $t3, $t3, 1                # Avançar para o próximo caractere
+    j skip_spaces
+
+extract_fields:
+    # Verificar o tipo de instrução (R, I, J)
+    lb $t1, opcode                   # Carregar opcode da instrução
+    beqz $t1, extract_type_r         # Se opcode = 0, é tipo R
+    li $t2, 0x02                     # Opcode para jump (tipo J)
+    beq $t1, $t2, extract_type_j     # Se for jump, extrair endereço/label
+    li $t2, 0x03                     # Opcode para jal (tipo J)
+    beq $t1, $t2, extract_type_j     # Se for jal, extrair endereço/label
+    j extract_type_i                 # Caso contrário, é tipo I
+
+extract_type_r:
+    # Extrair rs (source register)
+    jal extract_register             # Extrair registrador
+    sw $v0, rs                       # Armazenar em rs
+
+    # Verificar se há próximo registrador
+    lb $t0, 0($t3)                   # Carregar próximo caractere
+    li $t1, ','                      # Verificar se é vírgula
+    bne $t0, $t1, end_extract_fields # Se não for, terminar
+    addiu $t3, $t3, 1                # Avançar para o próximo caractere
+
+    # Extrair rt (target register)
+    jal extract_register             # Extrair registrador
+    sw $v0, rt                       # Armazenar em rt
+
+    # Verificar se há próximo registrador
+    lb $t0, 0($t3)                   # Carregar próximo caractere
+    li $t1, ','                      # Verificar se é vírgula
+    bne $t0, $t1, end_extract_fields # Se não for, terminar
+    addiu $t3, $t3, 1                # Avançar para o próximo caractere
+
+    # Extrair rd (destination register)
+    jal extract_register             # Extrair registrador
+    sw $v0, rd                       # Armazenar em rd
+
+    j end_extract_fields
+
+extract_type_i:
+    # Extrair rt (target register)
+    jal extract_register             # Extrair registrador
+    sw $v0, rt                       # Armazenar em rt
+
+    # Verificar se há próximo registrador ou valor imediato
+    lb $t0, 0($t3)                   # Carregar próximo caractere
+    li $t1, ','                      # Verificar se é vírgula
+    bne $t0, $t1, end_extract_fields # Se não for, terminar
+    addiu $t3, $t3, 1                # Avançar para o próximo caractere
+
+    # Extrair rs (source register) ou immediate
+    jal extract_register_or_immediate # Extrair registrador ou valor imediato
+    sw $v0, rs                       # Armazenar em rs ou immediate
+
+    j end_extract_fields
+
+extract_type_j:
+    # Extrair endereço ou label
+    jal extract_label_or_address     # Extrair label ou endereço
+    sw $v0, jump_address             # Armazenar em jump_address
+
+end_extract_fields:
+    jr $ra                           # Retornar
+
+# Função para extrair um label ou endereço
+extract_label_or_address:
+    li $v0, 0                        # Inicializar valor do endereço/label
+extract_label_loop:
+    lb $t0, 0($t3)                   # Carregar caractere atual
+    beqz $t0, end_extract_label      # Se for null, terminar
+    li $t1, ' '                      # Verificar se é espaço
+    beq $t0, $t1, end_extract_label
+    li $t1, '\t'                     # Verificar se é tab
+    beq $t0, $t1, end_extract_label
+
+    # Verificar se é um dígito (endereço numérico)
+    li $t1, '0'
+    blt $t0, $t1, not_digit_label
+    li $t1, '9'
+    bgt $t0, $t1, not_digit_label
+    sub $t0, $t0, '0'                # Converter caractere para número
+    mul $v0, $v0, 10                 # Multiplicar valor atual por 10
+    add $v0, $v0, $t0                # Adicionar dígito ao valor
+    addiu $t3, $t3, 1                # Avançar para o próximo caractere
+    j extract_label_loop
+
+not_digit_label:
+    # Verificar se é um label (ex: LABEL)
+    la $t1, labels                   # Tabela de labels
+    li $t2, 0                        # Índice na tabela
+find_label_loop:
+    lw $t4, 0($t1)                   # Carregar endereço do label
+    beqz $t4, end_extract_label      # Se não encontrado, terminar
+    la $t5, 4($t1)                   # Carregar nome do label
+    move $t6, $t3                    # Ponteiro para o nome do label na instrução
+compare_label_loop:
+    lb $t7, 0($t5)                   # Carregar caractere do label na tabela
+    lb $t8, 0($t6)                   # Carregar caractere do label na instrução
+    bne $t7, $t8, next_label         # Se diferentes, avançar para o próximo label
+    beqz $t7, found_label            # Se ambos forem null, label encontrado
+    addiu $t5, $t5, 1                # Avançar para o próximo caractere
+    addiu $t6, $t6, 1
+    j compare_label_loop
+next_label:
+    addiu $t1, $t1, 8                # Avançar para o próximo label na tabela
+    j find_label_loop
+found_label:
+    move $v0, $t4                    # Retornar endereço do label
+    j end_extract_label
+
+end_extract_label:
+    jr $ra                           # Retornar
