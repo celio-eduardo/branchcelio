@@ -1,0 +1,129 @@
+.data
+buffer: .space 32  # Buffer para armazenar a instrução binária como string
+newline: .asciiz "\n"
+
+.text
+.globl main
+
+main:
+    # Exemplo 1: Instrução 'add $t0, $t1, $t2'
+    li $t0, 0          # opcode = 000000
+    li $t1, 9          # rs = $t1 (01001)
+    li $t2, 10         # rt = $t2 (01010)
+    li $t3, 8          # rd = $t0 (01000)
+    li $t4, 0          # shamt = 00000
+    li $t5, 32         # funct = 100000
+
+    # Processar e armazenar a instrução no buffer em binário
+    la $a0, buffer
+
+    # opcode
+    li $t6, 6  # tamanho do campo
+    jal store_bits
+
+    # rs
+    li $t6, 5
+    move $t7, $t1  # Campo rs
+    jal store_bits
+
+    # rt
+    li $t6, 5
+    move $t7, $t2  # Campo rt
+    jal store_bits
+
+    # rd
+    li $t6, 5
+    move $t7, $t3  # Campo rd
+    jal store_bits
+
+    # shamt
+    li $t6, 5
+    move $t7, $t4  # Campo shamt
+    jal store_bits
+
+    # funct
+    li $t6, 6
+    move $t7, $t5  # Campo funct
+    jal store_bits
+
+    # Exibir a instrução final em binário
+    la $a0, buffer
+    li $v0, 4
+    syscall
+    la $a0, newline
+    li $v0, 4
+    syscall
+
+    # Exemplo 2: Instrução 'sub $s0, $s1, $s2'
+    li $t0, 0          # opcode = 000000
+    li $t1, 17         # rs = $s1 (10001)
+    li $t2, 18         # rt = $s2 (10010)
+    li $t3, 16         # rd = $s0 (10000)
+    li $t4, 0          # shamt = 00000
+    li $t5, 34         # funct = 100010
+
+    # Processar e armazenar a instrução no buffer em binário
+    la $a0, buffer
+
+    # opcode
+    li $t6, 6  # tamanho do campo
+    jal store_bits
+
+    # rs
+    li $t6, 5
+    move $t7, $t1  # Campo rs
+    jal store_bits
+
+    # rt
+    li $t6, 5
+    move $t7, $t2  # Campo rt
+    jal store_bits
+
+    # rd
+    li $t6, 5
+    move $t7, $t3  # Campo rd
+    jal store_bits
+
+    # shamt
+    li $t6, 5
+    move $t7, $t4  # Campo shamt
+    jal store_bits
+
+    # funct
+    li $t6, 6
+    move $t7, $t5  # Campo funct
+    jal store_bits
+
+    # Exibir a instrução final em binário
+    la $a0, buffer
+    li $v0, 4
+    syscall
+    la $a0, newline
+    li $v0, 4
+    syscall
+
+    # Finalizar o programa
+    li $v0, 10  # syscall: exit
+    syscall
+
+# Função para armazenar os bits da instrução no buffer
+store_bits:
+    addi $sp, $sp, -8
+    sw $ra, 0($sp)
+    sw $a0, 4($sp)
+
+    loop_store_bits:
+        beq $t6, 0, end_store_bits
+        andi $t8, $t7, 1
+        addi $t8, $t8, 48  # Converter para caractere '0' ou '1'
+        sb $t8, 0($a0)
+        srl $t7, $t7, 1
+        addi $a0, $a0, 1
+        sub $t6, $t6, 1
+        j loop_store_bits
+
+    end_store_bits:
+        lw $ra, 0($sp)
+        lw $a0, 4($sp)
+        addi $sp, $sp, 8
+        jr $ra

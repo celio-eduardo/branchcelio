@@ -1,0 +1,113 @@
+.data
+newline: .asciiz "\n"
+space: .asciiz " "
+coments: .asciiz "#"
+tabulacao: .asciiz "\t"
+buffer: .space 128  # Buffer para leitura de linhas
+
+.text
+.globl main
+
+main:
+    # Presume-se que o endereço do arquivo esteja em $a0 (não usarei o $t0 mesmo)
+    la $t0, buffer  # Endereço do buffer para ler a linha
+
+    # Loop de leitura de linha
+read_line:
+    li $v0, 8          # syscall: read_string
+    move $a1, $t0      # Buffer onde a string será armazenada
+    li $a2, 128        # Tamanho máximo da string
+    syscall
+
+    # Verifica se a linha contém .text ou .data
+    la $t1, text_label
+    la $t2, data_label
+    la $t3, space
+
+    # Copiar a primeira palavra da linha
+    li $t4, 0
+    loop_check_label:
+        lb $t5, 0($t0)  # Carregar o byte atual
+        beq $t5, 0x20, end_loop_check_label  # Se espaço, fim da palavra
+        sb $t5, 0($t1)  # Copiar byte para t1
+        addi $t1, $t1, 1
+        addi $t0, $t0, 1
+        j loop_check_label
+    end_loop_check_label:
+
+    # Verifica se a palavra é .text ou .data
+    la $t1, text_label
+    li $t6, 0           # Flag para .text section
+    li $t7, 0           # Flag para .data section
+
+    # Comparar primeira palavra com ".text"
+    la $t8, text_string
+    loop_compare_text:
+        lb $t9, 0($t1)
+        lb $s0, 0($t8)
+        beq $t9, $s0, same_char_text
+        j end_compare_text
+    same_char_text:
+        beq $t9, 0, set_text_flag
+        addi $t1, $t1, 1
+        addi $t8, $t8, 1
+        j loop_compare_text
+    set_text_flag:
+        li $t6, 1
+    end_compare_text:
+
+    # Comparar primeira palavra com ".data"
+    la $t1, text_label
+    la $t8, data_string
+    loop_compare_data:
+        lb $t9, 0($t1)
+        lb $s0, 0($t8)
+        beq $t9, $s0, same_char_data
+        j end_compare_data
+    same_char_data:
+        beq $t9, 0, set_data_flag
+        addi $t1, $t1, 1
+        addi $t8, $t8, 1
+        j loop_compare_data
+    set_data_flag:
+        li $t7, 1
+    end_compare_data:
+
+    # Processar instruções se estivermos na seção .text
+    beq $t6, 1, process_text
+
+    # Lê a próxima linha se não estamos na seção .text
+    j read_line
+
+process_text:
+    # Remover espaços e vírgulas, etc., e extrair a instrução e os argumentos
+    la $t0, buffer  # Reinicia o ponteiro do buffer
+    la $t1, buffer  # Reinicia o ponteiro para escrever de volta
+
+    loop_process_text:
+        lb $t2, 0($t0)
+        beq $t2, 0, end_process_text
+        beq $t2, 0x20, next_char
+        beq $t2, 0x2C, next_char  # Vírgula
+        beq $t2, 0x3A, next_char  # Dois pontos
+        sb $t2, 0($t1)
+        addi $t1, $t1, 1
+    next_char:
+        addi $t0, $t0, 1
+        j loop_process_text
+    end_process_text:
+        sb $zero, 0($t1)  # Adiciona null terminator
+
+    # Em andamento: código de verificação para disponibilizar as instruções para análise específica
+
+    # Exibir a linha processada para teste (remover, só para teste)
+    la $a0, buffer
+    li $v0, 4  # syscall: print_string
+    syscall
+
+    # Lê a próxima linha
+    j read_line
+
+.text_label: .asciiz ""
+.text_string: .asciiz ".text"
+.data_string: .asciiz ".data"

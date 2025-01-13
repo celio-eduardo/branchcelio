@@ -1,0 +1,123 @@
+.data
+instruction:    .word 0              # Variável para armazenar a instrução final
+buffer:         .space 4             # Buffer para armazenar a instrução em binário
+
+# Variáveis para armazenar partes da instrução
+opcode:         .word 0              # 6 bits
+rs:             .word 0              # 5 bits
+rt:             .word 0              # 5 bits
+rd:             .word 0              # 5 bits
+shamt:          .word 0              # 5 bits
+funct:          .word 0              # 6 bits
+immediate:      .word 0              # 16 bits
+address:        .word 0              # 26 bits
+
+.text
+.globl main
+
+main:
+    # Exemplo: add $t0, $t1, $t2 (tipo R)
+    li $t0, 0b000000                # Opcode (add) - 6 bits
+    sw $t0, opcode
+
+    li $t1, 9                       # rs ($t1) - 5 bits
+    sw $t1, rs
+
+    li $t2, 10                      # rt ($t2) - 5 bits
+    sw $t2, rt
+
+    li $t3, 8                       # rd ($t0) - 5 bits
+    sw $t3, rd
+
+    li $t4, 0                       # shamt - 5 bits
+    sw $t4, shamt
+
+    li $t5, 0b100000                # funct (add) - 6 bits
+    sw $t5, funct
+
+    # Classificar a instrução e preencher o buffer
+    jal build_instruction
+
+    # Exibir a instrução final (em hexadecimal)
+    lw $a0, instruction
+    li $v0, 34                      # Código do syscall para imprimir inteiro em hexadecimal
+    syscall
+
+    # Terminar programa
+    li $v0, 10
+    syscall
+
+# Função para construir a instrução
+build_instruction:
+    # Salvar contexto
+    addiu $sp, $sp, -4
+    sw $ra, 0($sp)
+
+    # Verificar o tipo de instrução (R, I, J)
+    lw $t0, opcode
+    beqz $t0, build_type_r          # Se opcode = 0, é tipo R
+    li $t1, 0x02                    # Opcode para jump (tipo J)
+    beq $t0, $t1, build_type_j      # Se for jump, construir tipo J
+    li $t1, 0x03                    # Opcode para jal (tipo J)
+    beq $t0, $t1, build_type_j      # Se for jal, construir tipo J
+    j build_type_i                  # Caso contrário, é tipo I
+
+build_type_r:
+    # Construir instrução tipo R
+    lw $t0, opcode                  # Opcode (já está na posição correta)
+    lw $t1, rs                      # rs
+    sll $t1, $t1, 21                # rs << 21
+    lw $t2, rt                      # rt
+    sll $t2, $t2, 16                # rt << 16
+    lw $t3, rd                      # rd
+    sll $t3, $t3, 11                # rd << 11
+    lw $t4, shamt                   # shamt
+    sll $t4, $t4, 6                 # shamt << 6
+    lw $t5, funct                   # funct (já está na posição correta)
+
+    # Combinar os campos
+    or $t6, $t0, $t1                # opcode | rs
+    or $t6, $t6, $t2                # | rt
+    or $t6, $t6, $t3                # | rd
+    or $t6, $t6, $t4                # | shamt
+    or $t6, $t6, $t5                # | funct
+
+    # Armazenar a instrução final
+    sw $t6, instruction
+    j end_build
+
+build_type_i:
+    # Construir instrução tipo I
+    lw $t0, opcode                  # Opcode (já está na posição correta)
+    lw $t1, rs                      # rs
+    sll $t1, $t1, 21                # rs << 21
+    lw $t2, rt                      # rt
+    sll $t2, $t2, 16                # rt << 16
+    lw $t3, immediate               # immediate (já está na posição correta)
+
+    # Combinar os campos
+    or $t6, $t0, $t1                # opcode | rs
+    or $t6, $t6, $t2                # | rt
+    or $t6, $t6, $t3                # | immediate
+
+    # Armazenar a instrução final
+    sw $t6, instruction
+    j end_build
+
+build_type_j:
+    # Construir instrução tipo J
+    lw $t0, opcode                  # Opcode (já está na posição correta)
+    lw $t1, address                 # address
+    andi $t1, $t1, 0x03FFFFFF       # Garantir 26 bits (máscara 0x03FFFFFF)
+
+    # Combinar os campos
+    or $t6, $t0, $t1                # opcode | address
+
+    # Armazenar a instrução final
+    sw $t6, instruction
+
+end_build:
+    # Restaurar contexto
+    lw $ra, 0($sp)
+    addiu $sp, $sp, 4
+    jr $ra

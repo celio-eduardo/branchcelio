@@ -1,0 +1,66 @@
+.data
+    prompt1: .asciiz "Digite o dividendo: "
+    prompt2: .asciiz "Digite o divisor: "
+    error_msg: .asciiz "Erro: Divisão por zero!\n"
+    result_msg: .asciiz "Resultado da divisão: "
+    newline: .asciiz "\n"
+
+.text
+    .globl main
+
+main:
+    # Prompt para o dividendo
+    li $v0, 4
+    la $a0, prompt1
+    syscall
+
+    # Ler o dividendo
+    li $v0, 5
+    syscall
+    move $t0, $v0  # Armazena o dividendo em $t0
+
+    # Prompt para o divisor
+    li $v0, 4
+    la $a0, prompt2
+    syscall
+
+    # Ler o divisor
+    li $v0, 5
+    syscall
+    move $t1, $v0  # Armazena o divisor em $t1
+
+    # Verificar se o divisor é zero
+    beq $t1, $zero, error
+
+    # Realizar a divisão
+    div $t0, $t1
+    mflo $t2  # Armazena o resultado da divisão em $t2
+
+    # Imprimir a mensagem de resultado
+    li $v0, 4
+    la $a0, result_msg
+    syscall
+
+    # Imprimir o resultado da divisão
+    move $a0, $t2
+    li $v0, 1
+    syscall
+
+    # Imprimir nova linha
+    li $v0, 4
+    la $a0, newline
+    syscall
+
+    # Encerrar o programa
+    li $v0, 10
+    syscall
+
+error:
+    # Imprimir mensagem de erro
+    li $v0, 4
+    la $a0, error_msg
+    syscall
+
+    # Encerrar o programa
+    li $v0, 10
+    syscall

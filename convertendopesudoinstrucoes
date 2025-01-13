@@ -1,0 +1,128 @@
+.data
+# Variáveis para armazenar partes da instrução
+opcode:         .word 0              # Opcode da instrução
+rs:             .word 0              # Registrador source
+rt:             .word 0              # Registrador target
+rd:             .word 0              # Registrador destination
+shamt:          .word 0              # Shift amount
+funct:          .word 0              # Funct da instrução
+immediate:      .word 0              # Valor imediato (para tipo I)
+address:        .word 0              # Endereço de jump (para tipo J)
+
+# Tabela de mnemônicos e opcodes/functs
+mnemonics:      .asciiz "break", "lwr", "bnel", "movz", "multu", "bal", "bgtzl", "msub", "srlv", "tne"
+
+.text
+.globl main
+
+main:
+    # Exemplo de código com pseudo-instruções
+    li $t0, 100        # Pseudo-instrução: load immediate
+    move $t1, $t0      # Pseudo-instrução: move
+    bgt $t1, $t0, end  # Pseudo-instrução: branch if greater than
+    add $t2, $t1, $t0
+
+end:
+    jr $ra
+
+# Função para processar pseudo-instruções
+process_pseudo:
+    # Salvar contexto
+    addiu $sp, $sp, -8
+    sw $ra, 0($sp)
+    sw $s1, 4($sp)
+
+    # Identificar a pseudo-instrução
+    lw $t0, opcode
+    la $t1, mnemonics
+    jal find_pseudo_index  # Encontrar índice da pseudo-instrução na tabela
+    move $t2, $v0          # Índice da pseudo-instrução
+
+    # Obter endereço da label da pseudo-instrução
+    lw $s1, 0($t1)         # Endereço da label da pseudo-instrução
+
+    # Fazer jump para a label da pseudo-instrução
+    jalr $s1               # Jump para a label e salva o endereço de retorno em $ra
+
+    # Restaurar contexto
+    lw $ra, 0($sp)
+    lw $s1, 4($sp)
+    addiu $sp, $sp, 8
+
+    # Retornar para a próxima linha de código
+    jr $ra
+
+# Função para encontrar o índice da pseudo-instrução na tabela
+find_pseudo_index:
+    li $t0, 0              # Índice inicial
+    la $t1, mnemonics      # Endereço da tabela de mnemônicos
+find_loop:
+    lb $t2, 0($t1)         # Carregar caractere do mnemônico na tabela
+    beqz $t2, end_find     # Se for null, terminar
+    move $t3, $a0          # Endereço do mnemônico extraído
+compare_loop:
+    lb $t4, 0($t3)         # Carregar caractere do mnemônico extraído
+    lb $t5, 0($t1)         # Carregar caractere do mnemônico na tabela
+    bne $t4, $t5, next_pseudo  # Se diferentes, avançar para o próximo mnemônico
+    beqz $t4, found        # Se ambos forem null, mnemônico encontrado
+    addiu $t3, $t3, 1      # Avançar para o próximo caractere
+    addiu $t1, $t1, 1
+    j compare_loop
+next_pseudo:
+    addiu $t0, $t0, 1      # Incrementar índice
+    la $t1, mnemonics      # Reiniciar endereço da tabela
+    j find_loop
+found:
+    move $v0, $t0          # Retornar índice do mnemônico
+    jr $ra
+end_find:
+    li $v0, -1             # Retornar -1 se não encontrado
+    jr $ra
+
+# Labels para decomposição das pseudo-instruções
+pseudo_break:
+    break
+    jr $ra
+
+pseudo_lwr:
+    lwr $t1, OFFSET($s2)
+    jr $ra
+
+pseudo_bnel:
+    bne $t1, $t2, LABEL
+    nop
+    jr $ra
+
+pseudo_movz:
+    beq $t3, $zero, move_label
+    j end_move
+move_label:
+    add $t1, $t2, $zero
+end_move:
+    jr $ra
+
+pseudo_multu:
+    multu $t1, $t2
+    jr $ra
+
+pseudo_bal:
+    jal LABEL
+    jr $ra
+
+pseudo_bgtzl:
+    bgtz $t3, OFFSET
+    nop
+    jr $ra
+
+pseudo_msub:
+    mult $t2, $t1
+    msub $t2, $t1
+    jr $ra
+
+pseudo_srlv:
+    srlv $t1, $t2, $t3
+    jr $ra
+
+pseudo_tne:
+    tne $t1, $t2
+    jr $ra

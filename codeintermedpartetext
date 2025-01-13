@@ -1,0 +1,50 @@
+.data
+newline: .asciiz "\n"
+buffer: .space 128  # Buffer para leitura de linhas
+
+.text
+.globl main
+
+main:
+    la $t0, buffer  # Endereço do buffer para ler a linha
+
+processando_linha:
+    li $v0, 8          # syscall: read_string
+    move $a1, $t0      # Buffer onde a string será armazenada
+    li $a2, 128        # Tamanho máximo da string
+    syscall
+
+    # Processar linha para remover espaços, vírgulas, etc.
+    la $t0, buffer  # Reinicia o ponteiro do buffer
+    la $t1, buffer  # Reinicia o ponteiro para escrever de volta
+
+process_text:
+    lb $t2, 0($t0)
+    beq $t2, 0, end_process_text
+    beq $t2, 0x0A, end_process_text  # Nova linha (LF) detectada
+    beq $t2, 0x20, next_char
+    beq $t2, 0x2C, next_char  # Vírgula
+    beq $t2, 0x3A, next_char  # Dois pontos
+    sb $t2, 0($t1)
+    addi $t1, $t1, 1
+next_char:
+    addi $t0, $t0, 1
+    j process_text
+end_process_text:
+    sb $zero, 0($t1)  # Adiciona null terminator
+
+    # Disponibilizar a linha processada para análise
+    j analyze_line
+
+analyze_line:
+    # Exibir a linha processada para teste
+    la $a0, buffer
+    li $v0, 4  # syscall: print_string
+    syscall
+
+    # Lê a próxima linha
+    j read_line
+
+end:
+    li $v0, 10  # syscall: exit
+    syscall

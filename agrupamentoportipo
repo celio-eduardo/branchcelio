@@ -1,0 +1,125 @@
+.data
+# Tabela de agrupamento por tipo registrador e offset
+agrup_reg_offset: .asciiz "lw\0sw\0"
+
+# Tabela de agrupamento por tipo de três registradores
+agrup_3reg: .asciiz "add\0sub\0and\0or\0nor\0xor\0addu\0subu\0sllv\0slt\0"
+
+# Tabela de agrupamento por tipo de dois registradores
+agrup_2reg: .asciiz "mult\0div\0"
+
+# Tabela de agrupamento por tipo 1 registrador
+agrup_1reg: .asciiz "mfhi\0mflo\0jalr\0jr\0"
+
+# Tabela de agrupamento por tipo label
+agrup_label: .asciiz "j\0jal\0"
+
+# Tabela de agrupamento por tipo 2 registradores e imediato
+agrup_2reg_imm: .asciiz "addi\0andi\0ori\0xori\0add\0sll\0srl\0"
+
+# Tabela de agrupamento por tipo 2 registradores e 1 label
+agrup_2reg_label: .asciiz "beq\0bne\0"
+
+# Tabela de agrupamento por registrador e endereço
+agrup_reg_address: .asciiz "lui\0"
+
+# Buffer para leitura de instruções e argumentos
+buffer: .space 128
+newline: .asciiz "\n"
+space: .asciiz " "
+
+.text
+.globl main
+
+main:
+    la $t0, buffer  # Endereço do buffer para ler a linha
+
+read_line:
+    li $v0, 8       # syscall: read_string
+    move $a1, $t0   # Buffer onde a string será armazenada
+    li $a2, 128     # Tamanho máximo da string
+    syscall
+
+    # Processar a linha lida
+    la $t1, buffer
+    la $t2, buffer
+
+    # Ponto de entrada para verificação da instrução
+    jal verify_instruction
+
+    # Finalizar o programa
+    li $v0, 10  # syscall: exit
+    syscall
+
+verify_instruction:
+    # Laço para verificação nas tabelas de agrupamento
+    la $a0, agrup_reg_offset
+    li $t3, 1  # Indica tipo de instrução atual sendo verificada (1 = reg_offset)
+
+check_tables:
+    lb $t4, 0($a0)  # Carrega o próximo byte da tabela atual
+    beq $t4, 0, next_table  # Se null terminator, verificar próxima tabela
+    beq $t4, '\0', check_instr  # Se delimitador, verificar a instrução
+    sb $t4, 0($t2)
+    addi $t2, $t2, 1
+    addi $a0, $a0, 1
+    j check_tables
+
+next_table:
+    # Verifica se todas as tabelas foram verificadas
+    addi $t3, $t3, 1
+    beq $t3, 2, load_3reg
+    beq $t3, 3, load_2reg
+    beq $t3, 4, load_1reg
+    beq $t3, 5, load_label
+    beq $t3, 6, load_2reg_imm
+    beq $t3, 7, load_2reg_label
+    beq $t3, 8, load_reg_address
+    j end_verify  # Todas as tabelas verificadas
+
+load_3reg:
+    la $a0, agrup_3reg
+    j check_tables
+
+load_2reg:
+    la $a0, agrup_2reg
+    j check_tables
+
+load_1reg:
+    la $a0, agrup_1reg
+    j check_tables
+
+load_label:
+    la $a0, agrup_label
+    j check_tables
+
+load_2reg_imm:
+    la $a0, agrup_2reg_imm
+    j check_tables
+
+load_2reg_label:
+    la $a0, agrup_2reg_label
+    j check_tables
+
+load_reg_address:
+    la $a0, agrup_reg_address
+    j check_tables
+
+check_instr:
+    # Comparar a instrução lida com a tabela
+    la $t2, buffer  # Reinicia o ponteiro do buffer
+    lb $t5, 0($t1)  # Carrega o próximo byte da instrução
+    beq $t5, $t4, instruction_match  # Se instrução coincide, processa argumentos
+    addi $t1, $t1, 1
+    j check_tables
+
+instruction_match:
+    # Processar os argumentos conforme o tipo de instrução
+    # Exemplo simples de processamento de argumentos para instrução lw
+    la $a0, buffer
+    li $v0, 4  # syscall: print_string
+    syscall
+    jr $ra
+
+end_verify:
+    jr $ra
